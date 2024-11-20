@@ -1,9 +1,30 @@
 import azure.functions as func
 import logging
 from azure.functions.decorators.core import DataType
-import uuid
+import datetime
+import json
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+@app.function_name(name="CollateData")
+@app.timer_trigger(
+    schedule="0 30 9 * * *", # At 9:30am each day
+    arg_name="mytimer",
+    run_on_startup=False,
+    use_monitor=True
+)
+@app.sql_input(
+    arg_name="dataIn",
+    command_text="select * from dbo.uec_raw_data",
+    command_type="Text",
+    connection_string_setting="SqlConnectionString"
+)
+def CollateData(mytimer : func.TimerRequest, dataIn : func.SqlRowList) -> None:
+    utc_timestamp = datetime.datetime.now()
+    logging.info("Python timer trigger function run at %s", utc_timestamp)
+
+    rows = list(map(lambda r: json.loads(r.to_json()), dataIn))
+    logging.info(rows)
 
 @app.function_name(name="UploadData")
 @app.route(route="HttpTrigger", auth_level=func.AuthLevel.ANONYMOUS)
