@@ -10,7 +10,7 @@ import datetime
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
-@app.function_name(name="SaveRecord")
+@app.function_name(name="CollateData")
 # @app.route(route="save")
 @app.sql_input(
     arg_name="dataIn",
