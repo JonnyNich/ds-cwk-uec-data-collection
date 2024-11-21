@@ -5,3 +5,4 @@
 azure-functions
 requests
 azure-storage-blob
+aiohttp
