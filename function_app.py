@@ -1,30 +1,63 @@
+from io import BufferedIOBase
+
 import azure.functions as func
 import logging
 from azure.functions.decorators.core import DataType
-import datetime
 import json
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+import os
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
-@app.function_name(name="CollateData")
+"""
 @app.timer_trigger(
     schedule="0 30 9 * * *", # At 9:30am each day
     arg_name="mytimer",
     run_on_startup=False,
     use_monitor=True
 )
+"""
+@app.function_name(name="SaveRecord")
+@app.route(route="save/{date}")
 @app.sql_input(
     arg_name="dataIn",
-    command_text="select * from dbo.uec_raw_data",
+    command_text="select * from dbo.uec_raw_data where reporting_date = @rep_date",
+    parameters="@rep_date={date}",
     command_type="Text",
     connection_string_setting="SqlConnectionString"
 )
-def CollateData(mytimer : func.TimerRequest, dataIn : func.SqlRowList) -> None:
-    utc_timestamp = datetime.datetime.now()
-    logging.info("Python timer trigger function run at %s", utc_timestamp)
-
+# def CollateData(mytimer : func.TimerRequest, dataIn : func.SqlRowList) -> None:
+def CollateData(req : func.HttpRequest, dataIn : func.SqlRowList) -> func.HttpResponse:
+    # Put the data from our SQL query and put it into a list
+    # For context, rows is a list of dictionaries
     rows = list(map(lambda r: json.loads(r.to_json()), dataIn))
-    logging.info(rows)
+
+    # Now, we prepare the data in a csv-style string fomrat
+    if len(rows) == 0:
+        return func.HttpResponse("No rows found :(")
+    headers = list(rows[0].keys())
+    data = []
+    for row in rows:
+        data.append(",".join(map(str, list(row.values()))))
+
+    csv_string_out = ",".join(headers) + "\n" + "\n".join(data)
+
+    # Set up our connection to the storage container
+    blob_service_client = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsMyStorage"])
+    container_name = "spreadsheet-store"
+    container_client = blob_service_client.get_container_client(container_name)
+
+    # Declare the blob's name and establish the client
+    # blob_name = "uec-daily-report-" + str(req.get_json("date")) + ".csv"
+    blob_name = "bleh.csv"
+    blob_client = blob_service_client.get_blob_client(container_name, blob_name)
+
+    # Write data to CSV
+    blob_client.upload_blob(csv_string_out, blob_type="BlockBlob", overwrite=True)
+
+    logging.info(csv_string_out)
+
+    return func.HttpResponse("Done")
 
 @app.function_name(name="UploadData")
 @app.route(route="HttpTrigger", auth_level=func.AuthLevel.ANONYMOUS)
