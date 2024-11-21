@@ -6,7 +6,7 @@ from azure.functions.decorators.core import DataType
 import json
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 import os
-import datetime
+from datetime import datetime, timedelta
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -14,12 +14,12 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 # @app.route(route="save")
 @app.sql_input(
     arg_name="dataIn",
-    command_text="select * from dbo.uec_raw_data where reporting_date = \'" + datetime.datetime.now().strftime("%Y/%m/%d") + "\'",
+    command_text="select * from dbo.uec_raw_data where reporting_date = \'" + (datetime.now()-timedelta(days=1)).strftime("%Y-%m-%d") + "\'",
     command_type="Text",
     connection_string_setting="SqlConnectionString"
 )
 @app.timer_trigger(
-    schedule="0 30 9 * * *", # At 9:30am each day
+    schedule="0 30 21 * * *", # At 9:30pm each day
     arg_name="mytimer",
     run_on_startup=False,
     use_monitor=True
@@ -29,28 +29,30 @@ def CollateData(mytimer : func.TimerRequest, dataIn : func.SqlRowList) -> None:
     # Put the data from our SQL query and put it into a list
     # For context, rows is a list of dictionaries
     rows = list(map(lambda r: json.loads(r.to_json()), dataIn))
+    if len(rows) == 0 :
+        logging.info("No data for yesterday :(")
+    else:
+        # Now, we prepare the data in a csv-style string fomrat
+        headers = list(rows[0].keys())
+        data = []
+        for row in rows:
+            data.append(",".join(map(str, list(row.values()))))
 
-    # Now, we prepare the data in a csv-style string fomrat
-    headers = list(rows[0].keys())
-    data = []
-    for row in rows:
-        data.append(",".join(map(str, list(row.values()))))
+        csv_string_out = ",".join(headers) + "\n" + "\n".join(data)
 
-    csv_string_out = ",".join(headers) + "\n" + "\n".join(data)
+        # Set up our connection to the storage container
+        blob_service_client = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsMyStorage"])
+        container_name = "spreadsheet-store"
+        container_client = blob_service_client.get_container_client(container_name)
 
-    # Set up our connection to the storage container
-    blob_service_client = BlobServiceClient.from_connection_string(os.environ["AzureWebJobsMyStorage"])
-    container_name = "spreadsheet-store"
-    container_client = blob_service_client.get_container_client(container_name)
+        # Declare the blob's name and establish the client
+        blob_name = "uec-daily-report-" + (datetime.now()-timedelta(days=1)).strftime("%Y-%m-%d") + ".csv"
+        blob_client = blob_service_client.get_blob_client(container_name, blob_name)
 
-    # Declare the blob's name and establish the client
-    blob_name = "uec-daily-report-" + datetime.datetime.now().strftime("%Y-%m-%d") + ".csv"
-    blob_client = blob_service_client.get_blob_client(container_name, blob_name)
+        # Write data to CSV
+        blob_client.upload_blob(csv_string_out, blob_type="BlockBlob", overwrite=True)
 
-    # Write data to CSV
-    blob_client.upload_blob(csv_string_out, blob_type="BlockBlob", overwrite=True)
-
-    logging.info(csv_string_out)
+        logging.info(csv_string_out)
 
 @app.function_name(name="UploadData")
 @app.route(route="HttpTrigger", auth_level=func.AuthLevel.ANONYMOUS)
