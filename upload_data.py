@@ -4,6 +4,7 @@ import random
 import string
 
 url = "https://uec-collection.azurewebsites.net/api/HttpTrigger?"
+local_url = "http://localhost:7071/api/HttpTrigger"
 
 # We will generate our data locally and place it in to an array of size 95
 # Each element in the array corresponds to a data-point that'll be passed to the JSON body
@@ -14,6 +15,22 @@ provider_code = "".join(random.sample(string.ascii_uppercase*3, 3)) # Generate a
 site_code = "".join([provider_code, "".join(random.sample(string.ascii_uppercase*2, 2))]) # Same as above, but append two more letters
 hospitals = ["Alpha Hospital", "Bravo Hospital", "Charlie Hospital", "Delta Hospital", "Echo Hospital", "Foxtrot Hospital"]
 
+# We define our "good" data
+ae_type1_resus = random.randint(0, 40)
+ae_type1_minors = random.randint(0, 40)
+ae_type1_majors = random.randint(0, 40)
+ae_type1_paeds = random.randint(0, 40)
+ae_type1 = ae_type1_resus + ae_type1_majors + ae_type1_minors + ae_type1_paeds
+breach_4h_type1_resus = ae_type1_resus - 1
+breach_4h_type1_majors = ae_type1_majors - 1
+breach_4h_type1_minors = ae_type1_minors - 1
+breach_4h_type1_paeds = ae_type1_paeds - 1
+breach_4h_type1 = breach_4h_type1_resus + breach_4h_type1_majors + breach_4h_type1_minors + breach_4h_type1_paeds
+ae_type2 = random.randint(0, 2000)
+ae_type3 = random.randint(0, 2000)
+breach_4h_type2 = ae_type2 - 1
+breach_4h_type3 = ae_type3 - 1
+
 body = {
     "provider_code": provider_code,
     "site_code": site_code,
@@ -21,20 +38,20 @@ body = {
     "submission_datetime": datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
     "ae_diverts_from": ";".join(random.sample(hospitals, 2)),
     "ae_diverts_to": ";".join(random.sample(hospitals, 2)),
-    "ae_type1" : random.randint(0, 2000),
-    "ae_type1_resus" : random.randint(0, 2000),
-    "ae_type1_majors" : random.randint(0, 2000),
-    "ae_type1_minors" : random.randint(0, 2000),
-    "ae_type1_paeds" : random.randint(0, 2000),
-    "ae_type2" : random.randint(0, 2000),
-    "ae_type3" : random.randint(0, 2000),
-    "breach_4h_type1" : random.randint(0, 2000),
-    "breach_4h_type1_resus" : random.randint(0, 2000),
-    "breach_4h_type1_majors" : random.randint(0, 2000),
-    "breach_4h_type1_minors" : random.randint(0, 2000),
-    "breach_4h_type1_paeds" : random.randint(0, 2000),
-    "breach_4h_type2" : random.randint(0, 2000),
-    "breach_4h_type3" : random.randint(0, 2000),
+    "ae_type1" : ae_type1,
+    "ae_type1_resus" : ae_type1_resus,
+    "ae_type1_majors" : ae_type1_majors,
+    "ae_type1_minors" : ae_type1_minors,
+    "ae_type1_paeds" : ae_type1_paeds,
+    "ae_type2" : ae_type2,
+    "ae_type3" : ae_type3,
+    "breach_4h_type1" : breach_4h_type1,
+    "breach_4h_type1_resus" : breach_4h_type1_resus,
+    "breach_4h_type1_majors" : breach_4h_type1_majors,
+    "breach_4h_type1_minors" : breach_4h_type1_minors,
+    "breach_4h_type1_paeds" : breach_4h_type1_paeds,
+    "breach_4h_type2" : breach_4h_type2,
+    "breach_4h_type3" : breach_4h_type3,
     "seen_in_60m_type1" : random.randint(0, 2000),
     "streamed_to_pc_streaming" : random.randint(0, 2000),
     "breach_4h_pc_streaming" : random.randint(0, 2000),
@@ -112,6 +129,6 @@ body = {
     "p4_admission_daycase_cancellations" : random.randint(0, 2000),
 }
 
-http_response = requests.post(url, json=body)
+http_response = requests.post(local_url, json=body)
 
 print (http_response.status_code, http_response.text)
